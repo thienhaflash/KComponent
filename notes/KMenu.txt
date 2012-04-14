@@ -1,0 +1,68 @@
+===============================================================
+	USAGE SAMPLE
+===============================================================
+var menu : KMenu = new KMenu(onClickMenuItem).createMenu(
+	['File', 
+		['New',
+			'Blank Document', 
+			'AS2 Document',
+			'AS3 Document']
+		'Modify',
+		'Open'],
+	['Edit',
+		'Undo',
+		'Redo'],
+	'View',
+	'Search',
+	'Debug']
+);
+
+function onClickMenuItem(data: Object): void {
+	trace(data.label, data.autoId);
+}
+===============================================================
+	FEATURES
+===============================================================
+Supports unlimited menu levels
+Supports show an abitrary number menu levels
+Support manage menu items by Id, with an automatic index based autoId (best for debug)
+Disable / Enable click on MenuItems that has sub Menu
+Automatic mouse handling
+	RollOver to show subMenu
+	RollOut to hide
+	Click to set active KMenu
+	
+Configurable for by each MENU ITEM or by each LEVEL
+	.width			: set minimum item width, still autosize if the content exceed size
+	.margin			: spacing that pad around the textfield of itemView
+	.clickable		: enable / disable click on this item
+	.itemClass		: view class to instantiate (itemView), elements used for automatic update : .txtLabel, .mcBg
+					  or use a custom update function :  .update(menuItem)
+		
+	.panelX			: set absolute position of this panel
+	.panelY			: -
+	.panelColor		: set color for this panel
+	.panelMargin	: margin for menuItem containers
+	.panelAlign		: position of the panel aligining to its parent MenuItem
+					  supported values : TL, TC, TR, BL, BC, BR, LT, LC, LB, RT, RC, RB
+	.panelIsHorz 	: control whether children of this menuItem will be laid out vertically or horizontally
+	.panelClass		: view class to instantiate (panelView), elements used for automatic update : .mcHolder, .mcBg
+					  or use a custom update function :  .update(menuItem)
+					  
+======================================================================================
+	TODO 
+
+.disableIs
+.enableIds
+
+.visibleIds
+.hideIds
+
+add advanced panel with customizable skin ? scroller ? grid view ? custom layout ? buffering ? separator
+advanced item with icon / arrows / shortcut
+add support for custom item (input field, radio group)
+reuse same level panels (call reset ? )
+use .data instead of .id for userData
+clean up public API and replace with internal API
+
+.clickIdOnly (only allow click on MenuItems that has Ids - won't check for allowParentClick)
