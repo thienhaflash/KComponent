@@ -1,0 +1,60 @@
+KCOMPONENTS
+
+Working on :
+	KMenu
+	KScroller (Support range ? )
+	KRadio
+	
+	
+To be done :
+	CORE :
+		ABSTRACT / COMMON
+			KConfig
+			KStyle (dynamic font support ?)
+			KSkin
+			KContextMenu
+			KShortcut
+		ELEMENTS
+			KLayout (HBox?, VBox?)
+			KInput 
+			KList (multiple select?)
+			KLabel 
+			KBox
+			KPanel
+			KButton (state / toggle / command)
+			KView (support video / text / image ...)
+		
+	SIMPLE
+		KProgress
+		KDialog
+		KSlider (Dual slider)
+		KCheckBox
+		KTab
+		KCalendar
+		KColorPicker(supports limited list of colors)
+		KDatePicker
+		KTimePicker
+		KKnob
+		KPanZoomRotate
+		KNumericStepper
+		KPaging
+		
+	COMPOSITE
+		ButtonDropdown
+		KContactForm
+		KDropdownBox
+		KSearch (autocomplete / instant search)
+		KAccordion
+		
+	HARD
+		KGroupView (Windows Explorer)
+		KGrid (support buffering)
+		KTree (with buffering)
+		KDataGrid
+		KChart
+		KCodeHighlighter
+		KTextEditor
+		
+	SEPARATED PRODUCTS
+		KGALLERY
+		KFLIPBOOK
