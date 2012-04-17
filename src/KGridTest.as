@@ -21,7 +21,6 @@ package
 		private function _onMouseMove(e:Event):void {
 			_grid.position = stage.mouseY / stage.stageHeight;
 		}
-		
 	}
 
 }

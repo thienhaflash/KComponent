@@ -201,14 +201,8 @@ package vn.ui {
 		}
 		
 		public function refreshContent():void {
-			if (!_data)
-				return;
-			
-			if (onContent == null) {
-				//trace(this, ' WARNING : no .onUpdate(idx, mc, data) attached so item content wont be updated to new data');
-			} else {
-				updateItems(-1, _nItems, false, onContent);
-			}
+			if (!_data) return;
+			updateItems(-1, _nItems, false, onContent);
 		}
 		
 		public function refreshPosition():void {
@@ -293,8 +287,8 @@ package vn.ui {
 		}
 		
 		private function updateItems(from:int, nUpdate:int, isPosition:Boolean, func:Function):void {
-			if (from < _first)
-				from = _first;
+			//trace('updateItems', from, _first, _last, nUpdate, isPosition);
+			if (from < _first) from = _first;
 				
 			var to:int = Math.min(from + nUpdate, _last + 1);
 			var offset:int = from - int(from / _nItems) * _nItems;
@@ -303,6 +297,7 @@ package vn.ui {
 			for (var i:int = from; i < to; i++) {
 				mc = _items[(offset + i - from) % _nItems];
 				
+				//trace(i, mc, mc.onContent);
 				if (isPosition /* && _autoPosition*/) {
 					if (_config.isHorz) {
 						mc.x = int(i / _config.nRows) * _config.cellW;
