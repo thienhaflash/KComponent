@@ -13,8 +13,7 @@ package
 		
 		public function KGridTest() {
 			_grid = new KGrid({parent : this, x: 100, y: 100})
-						.reset([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-			
+						.reset(100);
 			stage.addEventListener(Event.ENTER_FRAME, _onMouseMove);
 		}
 		

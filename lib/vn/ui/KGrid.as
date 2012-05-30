@@ -14,8 +14,9 @@ package vn.ui {
 	 */
 	public class KGrid {
 		/** EXTERNAL DATA **/
-		private var _data:*;
-		private var _dataLength:int;
+		private var _hasData	: Boolean;
+		private var _data		: *;
+		private var _dataLength	: int;
 		
 		/** CALL_BACKS **/
 		public var onUpdate:Function; //call to update both content / position
@@ -54,7 +55,7 @@ package vn.ui {
 				maskX : 0,
 				maskY : 0,
 				maskMrg : 1,
-				maskW : 100,
+				maskW : 200,
 				maskH : 200,
 				
 				contentMrg : 1,
@@ -64,10 +65,11 @@ package vn.ui {
 				cellW : 100,
 				cellH : 20,
 				nRows : 10,
-				nCols : 1
+				nCols : 2
 			});
 			
-			_nItems = 11;
+			_nItems = _config.nCols * _config.nRows + (_config.isHorz ? _config.nRows : _config.nCols);
+			
 			//_position = 0;
 			setSampleClass(TextItem);
 			Utils.resizeArray(_items, _sampleClass, _nItems);
@@ -175,12 +177,13 @@ package vn.ui {
 		 * call on data source change, content will automatically refresh
 		 * item positions will be reset to the beginning
 		 *
-		 * @param	data array of item datas
+		 * @param	data array / XMLList of item datas or length
 		 * @return
 		 */
 		public function reset(data:*, resetPosition:Boolean = true):KGrid {
-			_data = data;
-			_dataLength = data is XMLList ? data.length() : data.length;
+			_hasData = !(data is int);
+			_data = _hasData ? data : [];
+			_dataLength = _hasData ? data is XMLList ? data.length() : data.length : data as int;
 			_activeIdx = -1;
 			
 			first = 0;
@@ -207,7 +210,6 @@ package vn.ui {
 		
 		public function refreshPosition():void {
 			if (!_data) return;
-			//force update
 			updateItems(-1, _nItems, true, onPosition);
 		}
 		
@@ -289,7 +291,7 @@ package vn.ui {
 		private function updateItems(from:int, nUpdate:int, isPosition:Boolean, func:Function):void {
 			//trace('updateItems', from, _first, _last, nUpdate, isPosition);
 			if (from < _first) from = _first;
-				
+			
 			var to:int = Math.min(from + nUpdate, _last + 1);
 			var offset:int = from - int(from / _nItems) * _nItems;
 			var mc:Object;
@@ -306,12 +308,12 @@ package vn.ui {
 						mc.x = (i % _config.nCols) * _config.cellW;
 						mc.y = int(i / _config.nCols) * _config.cellH;
 					}
-					if (mc.hasOwnProperty('onPosition')) mc.onPosition(this, i, _data[i]);
+					if (mc.hasOwnProperty('onPosition')) mc.onPosition(this, i, _hasData ? _data[i] : i);
 				} else {
-					if (mc.hasOwnProperty('onContent')) mc.onContent(this, i, _data[i]);
+					if (mc.hasOwnProperty('onContent')) mc.onContent(this, i, _hasData ? _data[i] : i);
 				}
 				
-				if (func != null) func(i, mc, _data[i]);
+				if (func != null) func(i, mc, _hasData ? _data[i] : i);
 			}
 		}
 		
@@ -320,22 +322,25 @@ package vn.ui {
 		}
 		
 		public function set activeIdx(value:int):void {
-			var oldIdx : int = _activeIdx;
+			var oldIdx	: int		= _activeIdx;
+			var mc		: MovieClip = activeMc;
+			
 			_activeIdx = value;
 			
 			//refresh both old and new item
-			if (oldIdx != -1) updateItems(oldIdx, 1, false, onContent);
-			if (value != -1) updateItems(value, 1, false, onContent);
+			if (oldIdx != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(false) : updateItems(oldIdx, 1, false, onContent);
+			
+			mc = activeMc;
+			if (value != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(true) : updateItems(value, 1, false, onContent);
 		}
 		
 		public function get activeMc():MovieClip {
-			if (_activeIdx == -1 || _activeIdx < _first || _activeIdx > _last)
-				return null;
+			if (_activeIdx == -1 || _activeIdx < _first || _activeIdx > _last) return null;
 			return _items[_activeIdx % _nItems];
 		}
 		
 		public function get activeData():* {
-			return _activeIdx == -1 ? null : _data[_activeIdx];
+			return _activeIdx == -1 ? null : _hasData ? _data[_activeIdx] : _activeIdx;
 		}
 		
 		public function get view():Sprite {
@@ -370,6 +375,7 @@ import flash.text.TextField;
 import flash.text.TextFieldAutoSize;
 import flash.text.TextFormat;
 import flash.utils.flash_proxy;
+import flash.utils.getTimer;
 import flash.utils.Proxy;
 
 class TextItem extends MovieClip {
@@ -414,14 +420,20 @@ class TextItem extends MovieClip {
 	
 	public function onContent(grid: Object, id: int, data : * ): void {
 		//trace('onContent ::', id);
-		tf.text = 'TextItem : ' + id;
-		bg.alpha = id % 2 ? 1 : 0.5;
+		tf.text		= id + "|"+getTimer();
+		bg.alpha	= ((id % 4) == 0 || (id % 4) == 3) ? 1 : 0.5;
 		
-		over.visible	= grid.activeIdx == id; //always show if active !
-		buttonMode		= !over.visible;
+		setActive(grid.activeIdx == id);
+		
 		
 		this.id		= id;
 		this.grid	= grid;
+	}
+	
+	public function setActive(isActive: Boolean): void {
+		over.visible	= isActive; //always show if active !
+		over.alpha 		= isActive ? 1 : 0.5;
+		buttonMode		= !isActive;
 	}
 }
 
@@ -531,7 +543,7 @@ class Utils {
 		shp.y = pdo.y;
 		shp.width = w;
 		shp.height = h;
-		pdo.mask = shp;
+		//pdo.mask = shp;
 		return shp;
 	}
 	
