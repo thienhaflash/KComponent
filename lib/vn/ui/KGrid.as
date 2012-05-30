@@ -50,7 +50,6 @@ package vn.ui {
 			_mask	= Utils.newMask(_holder, 100, 100);
 			if (parentOrViewProps) Utils.setView(parentOrViewProps, _view);
 			
-			_items	= [];
 			_config = new KConfig({
 				maskX : 0,
 				maskY : 0,
@@ -68,12 +67,8 @@ package vn.ui {
 				nCols : 2
 			});
 			
-			_nItems = _config.nCols * _config.nRows + (_config.isHorz ? _config.nRows : _config.nCols);
-			
-			//_position = 0;
+			setClipping(true, true);
 			setSampleClass(TextItem);
-			Utils.resizeArray(_items, _sampleClass, _nItems);
-			
 			updateMaskSize();
 			this.onContent = onContent;
 		}
@@ -83,6 +78,7 @@ package vn.ui {
 		
 		public function setSample(pdo: Object): KGrid {
 			_sampleClass = getDefinitionByName(getQualifiedClassName(pdo)) as Class;
+			
 			_holder.x		= _sample.x;
 			_holder.y		= _sample.y;
 			_config.maskX	= _holder.x;
@@ -90,6 +86,10 @@ package vn.ui {
 			
 			_config.cellW = _sample.width;
 			_config.cellH = _sample.height;
+			
+			_items = [pdo];
+			_nItems = 1;
+			//Utils.resizeArray(_items, _sampleClass, _nItems);
 			return this;
 		}
 		
@@ -98,12 +98,31 @@ package vn.ui {
 			_sample = new _sampleClass();
 			_config.cellW = _sample.width;
 			_config.cellH = _sample.height;
+			
+			_items = [];
+			_nItems = 0;
+			//Utils.resizeArray(_items, _sampleClass, _nItems);
 			return this;
 		}
 		
 	/*************************
 	 * 	INIT / CONFIGURATION
 	 *************************/
+		
+		public function setClipping(useAlpha: Boolean, useMask : Boolean): KGrid {
+			_config.useAlpha = useAlpha;
+			_config.useMask = useMask;
+			
+			if (!useMask) {
+				_holder.mask = null;
+				_mask.visible = false;
+			} else {
+				_holder.mask = _mask;
+				_mask.visible = true;
+			}
+			
+			return this;
+		}
 		
 		public function setDimension(nRows:int, nCols:int, isHorz:Boolean):KGrid {
 			_config.nRows = nRows;
@@ -138,7 +157,7 @@ package vn.ui {
 			return this;
 		}
 		
-		public function setMaskSize(w:int, h:int, margin:int):KGrid {
+		public function setMaskSize(w:int, h:int, margin:int = 0):KGrid {
 			_config.maskW = w;
 			_config.maskH = h;
 			_config.maskMrg = margin;
@@ -186,10 +205,12 @@ package vn.ui {
 			_dataLength = _hasData ? data is XMLList ? data.length() : data.length : data as int;
 			_activeIdx = -1;
 			
-			first = 0;
-			Utils.removeChildren(_holder);
-			var min:int = Math.min(_dataLength, _nItems);
+			first	= 0;
+			_nItems = _config.nCols * _config.nRows + (_config.isHorz ? _config.nRows : _config.nCols)
+			Utils.resizeArray(_items, _sampleClass, _nItems);
 			
+			var min:int = Math.min(_dataLength, _nItems);
+			Utils.removeChildren(_holder);
 			for (var i:int = 0; i < min; i++) {
 				_holder.addChild(_items[i]);
 			}
@@ -219,13 +240,51 @@ package vn.ui {
 			value = isNaN(value) || value < 0 ? 0 : value > 1 ? 1 : value;
 			_position = value;
 			
+			var d1		: int;
+			var d2		: int;
+			var i		: int;
+			var mc		: DisplayObject;
+			
+			var maskX	: int = _config.maskX;
+			var maskY	: int = _config.maskY;
+			var maskW	: int = _config.maskW;
+			var maskH	: int = _config.maskH;
+			var maskMrg : int = _config.maskMrg;
+			
+			var cellW	: int = _config.cellW;
+			var cellH	: int = _config.cellH;
+			var nRows	: int = _config.nRows;
+			
+			//TODO : Optimize so we only check alpha for last + new boundary items
+			
 			if (_config.isHorz) {
-				_holder.x = Math.round(_config.maskX + _config.maskMrg + (_config.maskW >= _width ? _config.centerShortContent ? (_config.maskW - _width) / 2 : 0 : (_config.maskW - _width) * value)) + _config.contentOff;
+				_holder.x	= Math.round(maskX + maskMrg + (maskW >= _width ? _config.centerShortContent ? (maskW - _width) / 2 : 0 : (maskW - _width) * value)) + _config.contentOff;
+				first		= maskW > _width ? 0 : int((maskX - _holder.x) / cellW) * nRows;
 				
-				first = _config.maskW > _width ? 0 : int((_config.maskX - _holder.x) / _config.cellW) * _config.nRows;
+				if (_config.useAlpha) {
+					d1 		= maskX - _holder.x;
+					d2		= d1 + maskW - cellW;
+					
+					for (i = 0; i < _nItems; i++) {
+						mc			=	_items[i];
+						mc.alpha	=	mc.x < d1 	? Math.max(0, 1 - (d1 - mc.x) / cellW) : 
+										mc.x > d2	? Math.max(0, 1 - (mc.x - d2) / cellW) : 1;
+					}
+				}
 			} else {
-				_holder.y = Math.round(_config.maskY + _config.maskMrg + (_config.maskH >= _height ? _config.centerShortContent ? (_config.maskH - _height) / 2 : 0 : (_config.maskH - _height) * value)) + _config.contentOff;
-				first = _config.maskH > _height ? 0 : int((_config.maskY - _holder.y) / _config.cellH) * _config.nCols;
+				_holder.y = Math.round(maskY + _config.maskMrg + (maskH >= _height ? _config.centerShortContent ? (maskH - _height) / 2 : 0 : (maskH - _height) * value)) + _config.contentOff;
+				first = maskH > _height ? 0 : int((maskY - _holder.y) / cellH) * _config.nCols;
+				
+				if (_config.useAlpha) {
+					d1			= maskY - _holder.y;
+					d2			= d1 + maskH - cellH;
+					
+					for (i = 0; i < _nItems; i++) {
+						mc			= 	_items[i];
+						mc.alpha	=	mc.y < d1 ? Math.max(0, 1 - (d1 - mc.y) / cellH) : 
+										mc.y > d2 ? Math.max(0, 1 - (mc.y - d2) / cellH) : 1;
+					}
+				}
 			}
 			
 			//update content, then update positions
