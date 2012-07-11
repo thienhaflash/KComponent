@@ -16,17 +16,17 @@
     </define>
     <define append="true">
       <name>CONFIG::timeStamp</name>
-      <value>'5/30/2012'</value>
+      <value>'7/11/2012'</value>
     </define>
     <verbose-stacktraces>true</verbose-stacktraces>
     <source-path append="true">
-      <path-element>D:\Github\KComponent\src</path-element>
-      <path-element>D:\Github\KComponent\lib</path-element>
+      <path-element>D:\Github\KComponent\KGrid\src</path-element>
+      <path-element>D:\Github\KComponent\KGrid\lib</path-element>
       <path-element>C:\Program Files\FlashDevelop\Library\AS3\classes</path-element>
     </source-path>
   </compiler>
   <file-specs>
-    <path-element>D:\Github\KComponent\src\KGridTest.as</path-element>
+    <path-element>D:\Github\KComponent\KGrid\src\KGridTest.as</path-element>
   </file-specs>
   <default-background-color>#FFFFFF</default-background-color>
   <default-frame-rate>30</default-frame-rate>

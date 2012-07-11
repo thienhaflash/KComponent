@@ -67,8 +67,10 @@ package vn.ui {
 				nCols : 2
 			});
 			
-			setClipping(true, true);
-			setSampleClass(TextItem);
+			//setClipping(false, false);
+			setSample(new TextItem());
+			_sampleClass = TextItem;
+			
 			updateMaskSize();
 			this.onContent = onContent;
 		}
@@ -77,33 +79,44 @@ package vn.ui {
 		private var _sampleClass	: Class;
 		
 		public function setSample(pdo: Object): KGrid {
-			_sampleClass = getDefinitionByName(getQualifiedClassName(pdo)) as Class;
+			try {
+				_sampleClass	= getDefinitionByName(getQualifiedClassName(pdo)) as Class;
+			} catch (e: Error) { trace('Can not find definition <' + getQualifiedClassName(pdo) + '>') }
 			
+			_sample			= pdo as DisplayObject;
 			_holder.x		= _sample.x;
 			_holder.y		= _sample.y;
 			_config.maskX	= _holder.x;
 			_config.maskY	= _holder.y;
+			_config.cellW	= _sample.width;
+			_config.cellH	= _sample.height;
 			
-			_config.cellW = _sample.width;
-			_config.cellH = _sample.height;
+			if (_sample.parent) _sample.parent.removeChild(_sample);
+			checkMaskSize();
 			
-			_items = [pdo];
-			_nItems = 1;
+			//_items = [pdo];
+			//_nItems = 1;
+			
+			_items = [];
+			_nItems = 0;
+			
 			//Utils.resizeArray(_items, _sampleClass, _nItems);
 			return this;
 		}
 		
-		public function setSampleClass(cls : Class): KGrid {
-			_sampleClass = cls;
-			_sample = new _sampleClass();
-			_config.cellW = _sample.width;
-			_config.cellH = _sample.height;
-			
-			_items = [];
-			_nItems = 0;
+		//public function setSampleClass(cls : Class): KGrid {
+			//_sampleClass = cls;
+			//setSample(new cls());
+			//_sampleClass = cls;
+			//_sample = new _sampleClass();
+			//_config.cellW = _sample.width;
+			//_config.cellH = _sample.height;
+			//
+			//_items = [];
+			//_nItems = 0;
 			//Utils.resizeArray(_items, _sampleClass, _nItems);
-			return this;
-		}
+			//return this;
+		//}
 		
 	/*************************
 	 * 	INIT / CONFIGURATION
@@ -124,16 +137,20 @@ package vn.ui {
 			return this;
 		}
 		
+		private function checkMaskSize(): void {
+			if (_config.nCols > 0 && _config.nRows > 0 && _config.cellW && _config.cellH) {
+				_config.maskW = (_config.isHorz ? _config.nCols - 1 : _config.nCols) * _config.cellW;
+				_config.maskH = (_config.isHorz ? _config.nRows : (_config.nRows - 1)) * _config.cellH;
+				updateMaskSize();
+			}
+		}
+		
 		public function setDimension(nRows:int, nCols:int, isHorz:Boolean):KGrid {
 			_config.nRows = nRows;
 			_config.nCols = nCols;
 			_config.isHorz = isHorz;
 			
-			if (_config.maskW == 0 && _config.maskH == 0) {
-				_config.maskW = (isHorz ? _config.nCols - 1 : _config.nCols) * _config.cellW;
-				_config.maskH = (isHorz ? _config.nRows : (_config.nRows - 1)) * _config.cellH;
-				updateMaskSize();
-			}
+			checkMaskSize();
 			
 			Utils.resizeArray(_items, _sampleClass, nRows * nCols);
 			_nItems = _items.length;
@@ -205,7 +222,6 @@ package vn.ui {
 			_dataLength = _hasData ? data is XMLList ? data.length() : data.length : data as int;
 			_activeIdx = -1;
 			
-			first	= 0;
 			_nItems = _config.nCols * _config.nRows + (_config.isHorz ? _config.nRows : _config.nCols)
 			Utils.resizeArray(_items, _sampleClass, _nItems);
 			
@@ -215,22 +231,24 @@ package vn.ui {
 				_holder.addChild(_items[i]);
 			}
 			
+			_mask.x	= _holder.x = _config.maskX;
+			_mask.y = _holder.y = _config.maskY;
+			
+			first = 0;
+			
 			calculateWH();
 			refreshContent();
 			refreshPosition();
 			
 			if (resetPosition) position = 0;
-			
 			return this;
 		}
 		
 		public function refreshContent():void {
-			if (!_data) return;
 			updateItems(-1, _nItems, false, onContent);
 		}
 		
 		public function refreshPosition():void {
-			if (!_data) return;
 			updateItems(-1, _nItems, true, onPosition);
 		}
 		
@@ -255,12 +273,17 @@ package vn.ui {
 			var cellH	: int = _config.cellH;
 			var nRows	: int = _config.nRows;
 			
+			//trace('setPosition ::', maskX, maskY, maskW, maskH, maskMrg, cellW, cellH, nRows );
 			//TODO : Optimize so we only check alpha for last + new boundary items
 			
 			if (_config.isHorz) {
 				_holder.x	= Math.round(maskX + maskMrg + (maskW >= _width ? _config.centerShortContent ? (maskW - _width) / 2 : 0 : (maskW - _width) * value)) + _config.contentOff;
 				first		= maskW > _width ? 0 : int((maskX - _holder.x) / cellW) * nRows;
 				
+				//update content, then update positions
+				updateItems(_dFrom, _dCount, false, onContent);
+				updateItems(_dFrom, _dCount, true, onPosition);
+			
 				if (_config.useAlpha) {
 					d1 		= maskX - _holder.x;
 					d2		= d1 + maskW - cellW;
@@ -275,6 +298,10 @@ package vn.ui {
 				_holder.y = Math.round(maskY + _config.maskMrg + (maskH >= _height ? _config.centerShortContent ? (maskH - _height) / 2 : 0 : (maskH - _height) * value)) + _config.contentOff;
 				first = maskH > _height ? 0 : int((maskY - _holder.y) / cellH) * _config.nCols;
 				
+				//update content, then update positions
+				updateItems(_dFrom, _dCount, false, onContent);
+				updateItems(_dFrom, _dCount, true, onPosition);
+				
 				if (_config.useAlpha) {
 					d1			= maskY - _holder.y;
 					d2			= d1 + maskH - cellH;
@@ -286,10 +313,6 @@ package vn.ui {
 					}
 				}
 			}
-			
-			//update content, then update positions
-			updateItems(_dFrom, _dCount, false, onContent);
-			updateItems(_dFrom, _dCount, true, onPosition);
 		}
 		
 		/******************
@@ -305,15 +328,11 @@ package vn.ui {
 		}
 		
 		public function get relation():Number {
-			if (!_data || (_dataLength <= _config.activeScrollAt))
-				return 1;
+			if (_dataLength <= _config.activeScrollAt) return 1;
 			return _config.isHorz ? (_config.maskW / _width) : (_config.maskH / _height);
 		}
 		
 		public function get position():Number {
-			if (!_data) return 0;
-			
-			//trace(_config.maskW, _width, _config.maskH, _height);
 			return isNaN(_position) ? _config.isHorz ? (_config.maskW >= _width) ? 0 : ((_config.maskX + _config.maskMrg - _holder.x + _config.contentOff) / (_width - _config.maskW)) : (_config.maskH >= _height) ? 0 : ((_config.maskY + _config.maskMrg - _holder.y + _config.contentOff) / (_height - _config.maskH)) : _position;
 		}
 		
@@ -348,12 +367,13 @@ package vn.ui {
 		}
 		
 		private function updateItems(from:int, nUpdate:int, isPosition:Boolean, func:Function):void {
-			//trace('updateItems', from, _first, _last, nUpdate, isPosition);
 			if (from < _first) from = _first;
 			
 			var to:int = Math.min(from + nUpdate, _last + 1);
 			var offset:int = from - int(from / _nItems) * _nItems;
 			var mc:Object;
+			
+			if (from < to) trace('update', to-from, 'items : ', from,'-', to);//, _first, _last, nUpdate, isPosition
 			
 			for (var i:int = from; i < to; i++) {
 				mc = _items[(offset + i - from) % _nItems];
@@ -407,9 +427,6 @@ package vn.ui {
 		}
 		
 		private function calculateWH():void {
-			if (!_data)
-				return;
-			
 			if (_config.isHorz) {
 				_width = Math.ceil(_dataLength / _config.nRows) * _config.cellW + _config.contentMrg + _config.contentOff;
 				_height = _config.nRows * _config.cellH;
@@ -426,6 +443,7 @@ package vn.ui {
 	
 	}
 }
+
 import flash.display.MovieClip;
 import flash.display.Shape;
 import flash.display.Sprite;
@@ -436,66 +454,6 @@ import flash.text.TextFormat;
 import flash.utils.flash_proxy;
 import flash.utils.getTimer;
 import flash.utils.Proxy;
-
-class TextItem extends MovieClip {
-	public var tf	: TextField;
-	public var over : Shape;
-	public var bg	: Shape;
-	
-	private var id		: int;
-	private var grid	: Object;
-	
-	public function TextItem() {
-		bg		= Utils.newRect(0xEEEEEE, 'mcBg', this);
-		over	= Utils.newRect(0x8888ff, 'mcOver', this);
-		tf		= Utils.newTextField('txtLabel', this);
-		
-		over.height = 20;
-		bg.height = 20;
-		
-		over.visible = false;
-		mouseChildren = false;
-		
-		buttonMode = true;
-		addEventListener(MouseEvent.MOUSE_OVER, _showOver);
-		addEventListener(MouseEvent.MOUSE_OUT, _hideOver);
-		addEventListener(MouseEvent.CLICK, _onClickItem);
-	}
-	
-	private function _onClickItem(e:MouseEvent):void {
-		grid.activeIdx = id;
-	}
-	
-	private function _hideOver(e:MouseEvent):void {
-		if (grid.activeIdx != id) over.visible = false;
-	}
-	
-	private function _showOver(e:MouseEvent):void {
-		if (grid.activeIdx != id) over.visible = true;
-	}
-	
-	override public function get width():Number { return bg.width; }
-	override public function get height():Number { return bg.height; }
-	
-	public function onContent(grid: Object, id: int, data : * ): void {
-		//trace('onContent ::', id);
-		tf.text		= id + "|"+getTimer();
-		bg.alpha	= ((id % 4) == 0 || (id % 4) == 3) ? 1 : 0.5;
-		
-		setActive(grid.activeIdx == id);
-		
-		
-		this.id		= id;
-		this.grid	= grid;
-	}
-	
-	public function setActive(isActive: Boolean): void {
-		over.visible	= isActive; //always show if active !
-		over.alpha 		= isActive ? 1 : 0.5;
-		buttonMode		= !isActive;
-	}
-}
-
 import flash.display.DisplayObject;
 import flash.display.DisplayObjectContainer;
 import flash.display.Graphics;
@@ -546,6 +504,11 @@ import flash.utils.getQualifiedClassName;
    }
 
  }*/
+
+ //class gItem {
+	 //public var isSelected	: Boolean;
+	 //public var userData	: Object; //any data
+//}
 
 class Utils {
 	public static function newTextField(name: String, parent: DisplayObjectContainer): TextField {
@@ -676,5 +639,63 @@ dynamic class KConfig extends Proxy {
 	
 	override flash_proxy function hasProperty(name:*):Boolean {
 		return _config.hasOwnProperty(name);
+	}
+}
+
+class TextItem extends MovieClip {
+	public var tf	: TextField;
+	public var over : Shape;
+	public var bg	: Shape;
+	
+	private var id		: int;
+	private var grid	: Object;
+	
+	public function TextItem() {
+		bg		= Utils.newRect(0xEEEEEE, 'mcBg', this);
+		over	= Utils.newRect(0x8888ff, 'mcOver', this);
+		tf		= Utils.newTextField('txtLabel', this);
+		
+		over.height = 20;
+		bg.height = 20;
+		
+		over.visible = false;
+		mouseChildren = false;
+		
+		buttonMode = true;
+		addEventListener(MouseEvent.MOUSE_OVER, _showOver);
+		addEventListener(MouseEvent.MOUSE_OUT, _hideOver);
+		addEventListener(MouseEvent.CLICK, _onClickItem);
+	}
+	
+	private function _onClickItem(e:MouseEvent):void {
+		grid.activeIdx = id;
+	}
+	
+	private function _hideOver(e:MouseEvent):void {
+		if (grid.activeIdx != id) over.visible = false;
+	}
+	
+	private function _showOver(e:MouseEvent):void {
+		if (grid.activeIdx != id) over.visible = true;
+	}
+	
+	override public function get width():Number { return bg.width; }
+	override public function get height():Number { return bg.height; }
+	
+	public function onContent(grid: Object, id: int, data : * ): void {
+		//trace('onContent ::', id);
+		tf.text		= id + "|"+getTimer();
+		bg.alpha	= ((id % 4) == 0 || (id % 4) == 3) ? 1 : 0.5;
+		
+		setActive(grid.activeIdx == id);
+		
+		this.id		= id;
+		this.grid	= grid;
+	}
+	
+	public function setActive(isActive: Boolean): void {
+		over.visible	= isActive; //always show if active !
+		over.alpha 		= isActive ? 1 : 0.5;
+		buttonMode		= !isActive;
 	}
 }

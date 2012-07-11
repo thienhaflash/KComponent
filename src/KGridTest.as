@@ -12,9 +12,11 @@ package
 		private var _grid : KGrid;
 		
 		public function KGridTest() {
-			_grid = new KGrid({parent : this, x: 100, y: 100})
-						.reset(100);
-			stage.addEventListener(Event.ENTER_FRAME, _onMouseMove);
+			_grid = new KGrid( { parent : this, x: 100, y: 100 } )
+							.setClipping(true, false)
+							.reset(1000);
+							
+			stage.addEventListener(MouseEvent.MOUSE_DOWN, _onMouseMove);
 		}
 		
 		private function _onMouseMove(e:Event):void {
