@@ -19,9 +19,9 @@ package vn.ui {
 		private var _dataLength	: int;
 		
 		/** CALL_BACKS **/
-		public var onUpdate:Function; //call to update both content / position
-		public var onContent:Function; //calls to update separatedly
-		public var onPosition:Function;
+		//public var onUpdate:Function; //call to update both content / position
+		//public var onContent:Function; //calls to update separatedly
+		//public var onPosition:Function;
 		//public var onResize		: Function;
 		
 		//private var _targetDO:MovieClip;
@@ -30,11 +30,8 @@ package vn.ui {
 		private var _mask:Shape;
 		
 		/** INTERNAL DATA **/
-		private var _config:KConfig;
+		private var _config	: gConfig;
 		//private var _autoPosition	: Boolean; //automatically position items
-		
-		private var _width:int;
-		private var _height:int;
 		
 		private var _first:int; //first item to be render
 		private var _last:int; //last item to be render
@@ -48,85 +45,92 @@ package vn.ui {
 			_holder	= new Sprite();
 			_view.addChild(_holder);
 			_mask	= Utils.newMask(_holder, 100, 100);
-			if (parentOrViewProps) Utils.setView(parentOrViewProps, _view);
 			
-			_config = new KConfig({
-				maskX : 0,
-				maskY : 0,
-				maskMrg : 1,
-				maskW : 200,
-				maskH : 200,
-				
-				contentMrg : 1,
-				contentOff: 0,
-				
-				isHorz: false,
-				cellW : 100,
-				cellH : 20,
-				nRows : 10,
-				nCols : 2
-			});
+			_config = new gConfig();
 			
-			//setClipping(false, false);
-			setSample(new TextItem());
-			_sampleClass = TextItem;
+			var sample : DisplayObject = parentOrViewProps ? Utils.setView(parentOrViewProps, _view) : null;
+			sample	? setSample(sample) : setSampleClass(TextItem);
 			
 			updateMaskSize();
-			this.onContent = onContent;
+			_config.onContent = onContent;
 		}
+		
+	/**************************
+	 * 		DEBUGGER
+	 *************************/
+		
+		public var logLevel	: int;
+		public var logger	: Function;
+		
+		private function log(funcName: String, message: String, level : int = 0): void {
+			if (level > logLevel) return;
+			
+			//format message 
+			var s : String = 'KGrid.' + funcName + '() fail - ' + message;
+			(logger != null) ? logger(s) : trace(s);
+		}
+		
+	/**************************
+	 * 	SAMPLE / INSTANTIATE
+	 *************************/
 		
 		private var _sample			: DisplayObject;
 		private var _sampleClass	: Class;
 		
 		public function setSample(pdo: Object): KGrid {
-			try {
-				_sampleClass	= getDefinitionByName(getQualifiedClassName(pdo)) as Class;
-			} catch (e: Error) { trace('Can not find definition <' + getQualifiedClassName(pdo) + '>') }
+			if (!_sampleClass || !(pdo is _sampleClass)) {
+				try {
+					_sampleClass	= getDefinitionByName(getQualifiedClassName(pdo)) as Class;
+				} catch (e: Error) { log('setSample', 'Can not find definition <' + getQualifiedClassName(pdo) + '>') }
+			}
 			
 			_sample			= pdo as DisplayObject;
 			_holder.x		= _sample.x;
 			_holder.y		= _sample.y;
-			_config.maskX	= _holder.x;
-			_config.maskY	= _holder.y;
+			_config.viewX	= _holder.x;
+			_config.viewY	= _holder.y;
 			_config.cellW	= _sample.width;
 			_config.cellH	= _sample.height;
 			
 			if (_sample.parent) _sample.parent.removeChild(_sample);
 			checkMaskSize();
 			
-			//_items = [pdo];
-			//_nItems = 1;
-			
-			_items = [];
-			_nItems = 0;
-			
+			_items = [pdo];
+			_nItems = 1;
 			//Utils.resizeArray(_items, _sampleClass, _nItems);
 			return this;
 		}
 		
-		//public function setSampleClass(cls : Class): KGrid {
-			//_sampleClass = cls;
-			//setSample(new cls());
-			//_sampleClass = cls;
-			//_sample = new _sampleClass();
-			//_config.cellW = _sample.width;
-			//_config.cellH = _sample.height;
-			//
-			//_items = [];
-			//_nItems = 0;
-			//Utils.resizeArray(_items, _sampleClass, _nItems);
-			//return this;
-		//}
+		public function setSampleClass(cls : Class): KGrid {
+			if (!cls) {
+				log('setSampleClass', 'The sample class can not be null');
+				return this;
+			}
+			
+			var sample : DisplayObject;
+			try {
+				sample = new cls() as DisplayObject;
+			} catch (e: Error) {}
+			
+			if (sample) {
+				_sampleClass = cls;
+				setSample(sample);
+			} else {
+				log('setSampleClass', 'The sample class' + cls + ' must be intantiable & it instance should be a DisplayObject');
+			}
+			
+			return this;
+		}
 		
 	/*************************
 	 * 	INIT / CONFIGURATION
 	 *************************/
 		
-		public function setClipping(useAlpha: Boolean, useMask : Boolean): KGrid {
-			_config.useAlpha = useAlpha;
-			_config.useMask = useMask;
+		public function setClipping(useAlphaClip: Boolean, useMaskClip : Boolean): KGrid {
+			_config.useAlphaClip = useAlphaClip;
+			_config.useMaskClip = useMaskClip;
 			
-			if (!useMask) {
+			if (!useMaskClip) {
 				_holder.mask = null;
 				_mask.visible = false;
 			} else {
@@ -139,8 +143,8 @@ package vn.ui {
 		
 		private function checkMaskSize(): void {
 			if (_config.nCols > 0 && _config.nRows > 0 && _config.cellW && _config.cellH) {
-				_config.maskW = (_config.isHorz ? _config.nCols - 1 : _config.nCols) * _config.cellW;
-				_config.maskH = (_config.isHorz ? _config.nRows : (_config.nRows - 1)) * _config.cellH;
+				_config.viewW = (_config.isHorz ? _config.nCols - 1 : _config.nCols) * _config.cellW;
+				_config.viewH = (_config.isHorz ? _config.nRows : (_config.nRows - 1)) * _config.cellH;
 				updateMaskSize();
 			}
 		}
@@ -161,8 +165,8 @@ package vn.ui {
 		}
 		
 		public function setPadding(pxStart:int, pxEnd:int):KGrid {
-			_config.contentOff = pxStart;
-			_config.contentMrg = pxEnd;
+			_config.paddingStart = pxStart;
+			_config.paddingEnd = pxEnd;
 			return this;
 		}
 		
@@ -175,8 +179,8 @@ package vn.ui {
 		}
 		
 		public function setMaskSize(w:int, h:int, margin:int = 0):KGrid {
-			_config.maskW = w;
-			_config.maskH = h;
+			_config.viewW = w;
+			_config.viewH = h;
 			_config.maskMrg = margin;
 			
 			updateMaskSize();
@@ -185,11 +189,11 @@ package vn.ui {
 		
 		public function getDelta(n:int = 1):Number {
 			var px:int = (_config.isHorz ? _config.cellW : _config.cellH) * n;
-			return Math.max(0, _config.isHorz ? px / (_width - _config.maskW) : (px / (_height - _config.maskH)));
+			return Math.max(0, _config.isHorz ? px / (_config.width - _config.viewW) : (px / (_config.height - _config.viewH)));
 		}
 		
 		public function setActivateScrollAt(n:int):KGrid {
-			_config.activeScrollAt = n;
+			//_config.activeScrollAt = n;
 			return this;
 		}
 		
@@ -231,8 +235,8 @@ package vn.ui {
 				_holder.addChild(_items[i]);
 			}
 			
-			_mask.x	= _holder.x = _config.maskX;
-			_mask.y = _holder.y = _config.maskY;
+			_mask.x	= _holder.x = _config.viewX;
+			_mask.y = _holder.y = _config.viewY;
 			
 			first = 0;
 			
@@ -245,11 +249,11 @@ package vn.ui {
 		}
 		
 		public function refreshContent():void {
-			updateItems(-1, _nItems, false, onContent);
+			updateItems(-1, _nItems, false, _config.onContent);
 		}
 		
 		public function refreshPosition():void {
-			updateItems(-1, _nItems, true, onPosition);
+			updateItems(-1, _nItems, true, _config.onPosition);
 		}
 		
 		private var _position:Number;
@@ -263,30 +267,30 @@ package vn.ui {
 			var i		: int;
 			var mc		: DisplayObject;
 			
-			var maskX	: int = _config.maskX;
-			var maskY	: int = _config.maskY;
-			var maskW	: int = _config.maskW;
-			var maskH	: int = _config.maskH;
+			var viewX	: int = _config.viewX;
+			var viewY	: int = _config.viewY;
+			var viewW	: int = _config.viewW;
+			var viewH	: int = _config.viewH;
 			var maskMrg : int = _config.maskMrg;
 			
 			var cellW	: int = _config.cellW;
 			var cellH	: int = _config.cellH;
 			var nRows	: int = _config.nRows;
 			
-			//trace('setPosition ::', maskX, maskY, maskW, maskH, maskMrg, cellW, cellH, nRows );
+			//trace('setPosition ::', viewX, viewY, viewW, viewH, maskMrg, cellW, cellH, nRows );
 			//TODO : Optimize so we only check alpha for last + new boundary items
 			
 			if (_config.isHorz) {
-				_holder.x	= Math.round(maskX + maskMrg + (maskW >= _width ? _config.centerShortContent ? (maskW - _width) / 2 : 0 : (maskW - _width) * value)) + _config.contentOff;
-				first		= maskW > _width ? 0 : int((maskX - _holder.x) / cellW) * nRows;
+				_holder.x	= Math.round(viewX + maskMrg + (viewW >= _config.width ? _config.centerShortContent ? (viewW - _config.width) / 2 : 0 : (viewW - _config.width) * value)) + _config.paddingStart;
+				first		= viewW > _config.width ? 0 : int((viewX - _holder.x) / cellW) * nRows;
 				
 				//update content, then update positions
-				updateItems(_dFrom, _dCount, false, onContent);
-				updateItems(_dFrom, _dCount, true, onPosition);
+				updateItems(_dFrom, _dCount, false, _config.onContent);
+				updateItems(_dFrom, _dCount, true, _config.onPosition);
 			
-				if (_config.useAlpha) {
-					d1 		= maskX - _holder.x;
-					d2		= d1 + maskW - cellW;
+				if (_config.useAlphaClip) {
+					d1 		= viewX - _holder.x;
+					d2		= d1 + viewW - cellW;
 					
 					for (i = 0; i < _nItems; i++) {
 						mc			=	_items[i];
@@ -295,16 +299,16 @@ package vn.ui {
 					}
 				}
 			} else {
-				_holder.y = Math.round(maskY + _config.maskMrg + (maskH >= _height ? _config.centerShortContent ? (maskH - _height) / 2 : 0 : (maskH - _height) * value)) + _config.contentOff;
-				first = maskH > _height ? 0 : int((maskY - _holder.y) / cellH) * _config.nCols;
+				_holder.y = Math.round(viewY + _config.maskMrg + (viewH >= _config.height ? _config.centerShortContent ? (viewH - _config.height) / 2 : 0 : (viewH - _config.height) * value)) + _config.paddingStart;
+				first = viewH > _config.height ? 0 : int((viewY - _holder.y) / cellH) * _config.nCols;
 				
 				//update content, then update positions
-				updateItems(_dFrom, _dCount, false, onContent);
-				updateItems(_dFrom, _dCount, true, onPosition);
+				updateItems(_dFrom, _dCount, false, _config.onContent);
+				updateItems(_dFrom, _dCount, true, _config.onPosition);
 				
-				if (_config.useAlpha) {
-					d1			= maskY - _holder.y;
-					d2			= d1 + maskH - cellH;
+				if (_config.useAlphaClip) {
+					d1			= viewY - _holder.y;
+					d2			= d1 + viewH - cellH;
 					
 					for (i = 0; i < _nItems; i++) {
 						mc			= 	_items[i];
@@ -315,30 +319,30 @@ package vn.ui {
 			}
 		}
 		
-		/******************
-		 * 		GETTERS
-		 ******************/
+	/******************
+	 * 		GETTERS
+	 ******************/
 		
 		public function get height():int {
-			return _height;
+			return _config.height;
 		}
 		
 		public function get width():int {
-			return _width;
+			return _config.width;
 		}
 		
 		public function get relation():Number {
-			if (_dataLength <= _config.activeScrollAt) return 1;
-			return _config.isHorz ? (_config.maskW / _width) : (_config.maskH / _height);
+			//TODO : fix me if (_dataLength <= _config.activeScrollAt) return 1;
+			return _config.isHorz ? (_config.viewW / _config.width) : (_config.viewH / _config.height);
 		}
 		
 		public function get position():Number {
-			return isNaN(_position) ? _config.isHorz ? (_config.maskW >= _width) ? 0 : ((_config.maskX + _config.maskMrg - _holder.x + _config.contentOff) / (_width - _config.maskW)) : (_config.maskH >= _height) ? 0 : ((_config.maskY + _config.maskMrg - _holder.y + _config.contentOff) / (_height - _config.maskH)) : _position;
+			return isNaN(_position) ? _config.isHorz ? (_config.viewW >= _config.width) ? 0 : ((_config.viewX + _config.maskMrg - _holder.x + _config.paddingStart) / (_config.width - _config.viewW)) : (_config.viewH >= _config.height) ? 0 : ((_config.viewY + _config.maskMrg - _holder.y + _config.paddingStart) / (_config.height - _config.viewH)) : _position;
 		}
 		
-		/****************
-		 * 	INTERNAL
-		 ***************/
+	/****************
+	 * 	INTERNAL
+	 ***************/
 		
 		private var _dFrom:int;
 		private var _dCount:int;
@@ -407,10 +411,10 @@ package vn.ui {
 			_activeIdx = value;
 			
 			//refresh both old and new item
-			if (oldIdx != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(false) : updateItems(oldIdx, 1, false, onContent);
+			if (oldIdx != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(false) : updateItems(oldIdx, 1, false, _config.onContent);
 			
 			mc = activeMc;
-			if (value != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(true) : updateItems(value, 1, false, onContent);
+			if (value != -1 && mc) (mc.hasOwnProperty('setActive')) ? mc.setActive(true) : updateItems(value, 1, false, _config.onContent);
 		}
 		
 		public function get activeMc():MovieClip {
@@ -428,26 +432,27 @@ package vn.ui {
 		
 		private function calculateWH():void {
 			if (_config.isHorz) {
-				_width = Math.ceil(_dataLength / _config.nRows) * _config.cellW + _config.contentMrg + _config.contentOff;
-				_height = _config.nRows * _config.cellH;
+				_config.width = Math.ceil(_dataLength / _config.nRows) * _config.cellW + _config.paddingEnd + _config.paddingStart;
+				_config.height = _config.nRows * _config.cellH;
 			} else {
-				_width = _config.nCols * _config.cellW;
-				_height = Math.ceil(_dataLength / _config.nCols) * _config.cellH + _config.contentMrg + _config.contentOff;
+				_config.width = _config.nCols * _config.cellW;
+				_config.height = Math.ceil(_dataLength / _config.nCols) * _config.cellH + _config.paddingEnd + _config.paddingStart;
 			}
 		}
 		
 		private function updateMaskSize():void {
-			_mask.width = _config.maskW;
-			_mask.height = _config.maskH;
+			_mask.width = _config.viewW;
+			_mask.height = _config.viewH;
 		}
-	
 	}
 }
 
+import flash.display.BitmapData;
 import flash.display.MovieClip;
 import flash.display.Shape;
 import flash.display.Sprite;
 import flash.events.MouseEvent;
+import flash.geom.Rectangle;
 import flash.text.TextField;
 import flash.text.TextFieldAutoSize;
 import flash.text.TextFormat;
@@ -469,13 +474,13 @@ import flash.utils.getQualifiedClassName;
    public var cellW	: int;
    public var cellH	: int;
 
-   public var contentOff	: int; //offset the _holder content
-   public var contentMrg	: int;
+   public var paddingStart	: int; //offset the _holder content
+   public var paddingEnd	: int;
 
-   public var maskX	: int;
-   public var maskY	: int;
-   public var maskW	: int;
-   public var maskH	: int;
+   public var viewX	: int;
+   public var viewY	: int;
+   public var viewW	: int;
+   public var viewH	: int;
    public var maskMrg	: int; //margin for better content read
 
    public var activeScrollAt		: int;
@@ -505,10 +510,95 @@ import flash.utils.getQualifiedClassName;
 
  }*/
 
- //class gItem {
-	 //public var isSelected	: Boolean;
-	 //public var userData	: Object; //any data
-//}
+ 
+ class gConfig {
+	// content information
+	public var width	: int;
+	public var height	: int;
+	
+	//view info
+	public var viewX	: int;
+	public var viewY	: int;
+	public var viewW	: int;
+	public var viewH	: int;
+	
+	public var paddingStart : int;
+	public var paddingEnd	: int;
+	
+	//grid info
+	public var nRows	: int;
+	public var nCols	: int;
+	public var isHorz	: Boolean;
+	
+	//cell info
+	public var cellW	: int;
+	public var cellH	: int;
+	
+	//mask margin
+	public var mskL	: int;
+	public var mskR	: int;
+	public var mskT	: int;
+	public var mskB	: int;
+	
+	//public var cacheAsBitmap	: Boolean;//swap items with bitmap when mouse is out of cell view//should cacheAsBitmap run one by one for each frame ?
+	public var autoPosition		: Boolean;//automatically set items' positions
+	
+	//clipping mode
+	public var useBlendClip		: Boolean;//edge items will be cached as Bitmap & won't interactable
+	public var useMaskClip		: Boolean;//hard clip
+	public var useAlphaClip		: Boolean;//alpha down edge : you won't be able to change item's alpha, change its children's alpha intead
+	
+	//item offset
+	//public var offsetX	: int;
+	//public var offsetY	: int;
+	
+	//temp
+	public var maskMrg		: int;
+	
+	//callbacks
+	public var onPosition	: Function;
+	public var onContent	: Function; //should we use dynamic content creation (empty sprites to be holders ?)
+	public var onUpdate		: Function;
+	public var centerShortContent	: Boolean;
+	
+	public function gConfig() {
+		viewX = 0;
+		viewY = 0;
+		viewW = 200;
+		viewH = 200;
+		
+		isHorz	= false;
+		cellW	= 100;
+		cellH	= 20;
+		nRows	= 10;
+		nCols	= 2;
+		
+		//maskMrg : 1,
+		//paddingEnd : 1,
+		//paddingStart: 0,
+	}
+ }
+ 
+ class gItem {
+	public var isValid		: Boolean; //user may hide / alpha down / disable interaction on applying filter
+	public var isSelected	: Boolean; //being selected or not
+	public var userData		: Object; //any data
+	
+	//cell information
+	public var x		: int;
+	public var y		: int;
+	public var pctView	: Number; //percentage in view
+	
+	//public var lastUpdateTime	: int; //update time stamp
+	//public var lastCacheTime	: int; 
+	//public var cache			: BitmapData;
+	//public var itemType		: Class; //support multiple items type
+}
+
+class gSample {//create samples
+	
+}
+
 
 class Utils {
 	public static function newTextField(name: String, parent: DisplayObjectContainer): TextField {
@@ -558,8 +648,7 @@ class Utils {
 		g.drawRect(0, 0, 100, 100);
 		g.endFill();
 		
-		if (pdo.parent)
-			pdo.parent.addChild(shp);
+		if (pdo.parent) pdo.parent.addChild(shp);
 		
 		shp.x = pdo.x;
 		shp.y = pdo.y;
@@ -591,18 +680,17 @@ class Utils {
 	}
 	
 	public static function resizeArray(arr:Array, sampleClass: Class, n:int):Array {
-		if (!arr)
-			arr = [];
-		
+		if (!arr) arr = [];
 		for (var i:int = arr.length; i < n; i++) { //add more items if needed
 			arr.push(new sampleClass());
 		}
 		return arr;
 	}
 	
-	public static function setView(parentOrViewProps:Object, view:DisplayObject):void {
+	public static function setView(parentOrViewProps:Object, view:DisplayObject):DisplayObject {
 		if (parentOrViewProps is DisplayObjectContainer) {
 			parentOrViewProps.addChild(view);
+			return parentOrViewProps.getChildByName('sample');
 		} else {
 			var p:DisplayObjectContainer = parentOrViewProps.parent;
 			if (p) p.addChild(view);
@@ -611,36 +699,37 @@ class Utils {
 					view[s] = parentOrViewProps[s];
 				} catch (e:Error) {}
 			}
+			return parentOrViewProps.sample || p.getChildByName('sample');
 		}
 	}
 }
 
-dynamic class KConfig extends Proxy {
-	protected var _config	: Object;
-	protected var _default	: Object;
-	
-	public function KConfig(defaultConfig: Object) {
-		_default	= defaultConfig;
-		_config		= { };
-	}
-	
-	public function reset(obj: Object): KConfig {
-		_config = obj;
-		return this;
-	}
-	
-	override flash_proxy function getProperty(name:*):* {
-		return _config.hasOwnProperty(name) ? _config[name] : _default[name];
-	}
-	
-	override flash_proxy function setProperty(name:*, value:*):void {
-		_config[name] = value;
-	}
-	
-	override flash_proxy function hasProperty(name:*):Boolean {
-		return _config.hasOwnProperty(name);
-	}
-}
+//dynamic class KConfig extends Proxy {
+	//protected var _config	: Object;
+	//protected var _default	: Object;
+	//
+	//public function KConfig(defaultConfig: Object) {
+		//_default	= defaultConfig;
+		//_config		= { };
+	//}
+	//
+	//public function reset(obj: Object): KConfig {
+		//_config = obj;
+		//return this;
+	//}
+	//
+	//override flash_proxy function getProperty(name:*):* {
+		//return _config.hasOwnProperty(name) ? _config[name] : _default[name];
+	//}
+	//
+	//override flash_proxy function setProperty(name:*, value:*):void {
+		//_config[name] = value;
+	//}
+	//
+	//override flash_proxy function hasProperty(name:*):Boolean {
+		//return _config.hasOwnProperty(name);
+	//}
+//}
 
 class TextItem extends MovieClip {
 	public var tf	: TextField;
