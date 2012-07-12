@@ -4,6 +4,7 @@ package vn.ui {
 	import flash.display.MovieClip;
 	import flash.display.Shape;
 	import flash.display.Sprite;
+	import flash.geom.Rectangle;
 	import flash.utils.Dictionary;
 	import flash.utils.getDefinitionByName;
 	import flash.utils.getQualifiedClassName;
@@ -74,53 +75,7 @@ package vn.ui {
 	 * 	SAMPLE / INSTANTIATE
 	 *************************/
 		
-		private var _sample			: DisplayObject;
-		private var _sampleClass	: Class;
 		
-		public function setSample(pdo: Object): KGrid {
-			if (!_sampleClass || !(pdo is _sampleClass)) {
-				try {
-					_sampleClass	= getDefinitionByName(getQualifiedClassName(pdo)) as Class;
-				} catch (e: Error) { log('setSample', 'Can not find definition <' + getQualifiedClassName(pdo) + '>') }
-			}
-			
-			_sample			= pdo as DisplayObject;
-			_holder.x		= _sample.x;
-			_holder.y		= _sample.y;
-			_config.viewX	= _holder.x;
-			_config.viewY	= _holder.y;
-			_config.cellW	= _sample.width;
-			_config.cellH	= _sample.height;
-			
-			if (_sample.parent) _sample.parent.removeChild(_sample);
-			checkMaskSize();
-			
-			_items = [pdo];
-			_nItems = 1;
-			//Utils.resizeArray(_items, _sampleClass, _nItems);
-			return this;
-		}
-		
-		public function setSampleClass(cls : Class): KGrid {
-			if (!cls) {
-				log('setSampleClass', 'The sample class can not be null');
-				return this;
-			}
-			
-			var sample : DisplayObject;
-			try {
-				sample = new cls() as DisplayObject;
-			} catch (e: Error) {}
-			
-			if (sample) {
-				_sampleClass = cls;
-				setSample(sample);
-			} else {
-				log('setSampleClass', 'The sample class' + cls + ' must be intantiable & it instance should be a DisplayObject');
-			}
-			
-			return this;
-		}
 		
 	/*************************
 	 * 	INIT / CONFIGURATION
@@ -235,8 +190,8 @@ package vn.ui {
 				_holder.addChild(_items[i]);
 			}
 			
-			_mask.x	= _holder.x = _config.viewX;
-			_mask.y = _holder.y = _config.viewY;
+			_mask.x	= _holder.x = _config.x;
+			_mask.y = _holder.y = _config.y;
 			
 			first = 0;
 			
@@ -267,8 +222,8 @@ package vn.ui {
 			var i		: int;
 			var mc		: DisplayObject;
 			
-			var viewX	: int = _config.viewX;
-			var viewY	: int = _config.viewY;
+			var x	: int = _config.x;
+			var y	: int = _config.y;
 			var viewW	: int = _config.viewW;
 			var viewH	: int = _config.viewH;
 			var maskMrg : int = _config.maskMrg;
@@ -277,19 +232,19 @@ package vn.ui {
 			var cellH	: int = _config.cellH;
 			var nRows	: int = _config.nRows;
 			
-			//trace('setPosition ::', viewX, viewY, viewW, viewH, maskMrg, cellW, cellH, nRows );
+			//trace('setPosition ::', x, y, viewW, viewH, maskMrg, cellW, cellH, nRows );
 			//TODO : Optimize so we only check alpha for last + new boundary items
 			
 			if (_config.isHorz) {
-				_holder.x	= Math.round(viewX + maskMrg + (viewW >= _config.width ? _config.centerShortContent ? (viewW - _config.width) / 2 : 0 : (viewW - _config.width) * value)) + _config.paddingStart;
-				first		= viewW > _config.width ? 0 : int((viewX - _holder.x) / cellW) * nRows;
+				_holder.x	= Math.round(x + maskMrg + (viewW >= _config.width ? _config.centerShortContent ? (viewW - _config.width) / 2 : 0 : (viewW - _config.width) * value)) + _config.paddingStart;
+				first		= viewW > _config.width ? 0 : int((x - _holder.x) / cellW) * nRows;
 				
 				//update content, then update positions
 				updateItems(_dFrom, _dCount, false, _config.onContent);
 				updateItems(_dFrom, _dCount, true, _config.onPosition);
 			
 				if (_config.useAlphaClip) {
-					d1 		= viewX - _holder.x;
+					d1 		= x - _holder.x;
 					d2		= d1 + viewW - cellW;
 					
 					for (i = 0; i < _nItems; i++) {
@@ -299,15 +254,15 @@ package vn.ui {
 					}
 				}
 			} else {
-				_holder.y = Math.round(viewY + _config.maskMrg + (viewH >= _config.height ? _config.centerShortContent ? (viewH - _config.height) / 2 : 0 : (viewH - _config.height) * value)) + _config.paddingStart;
-				first = viewH > _config.height ? 0 : int((viewY - _holder.y) / cellH) * _config.nCols;
+				_holder.y = Math.round(y + _config.maskMrg + (viewH >= _config.height ? _config.centerShortContent ? (viewH - _config.height) / 2 : 0 : (viewH - _config.height) * value)) + _config.paddingStart;
+				first = viewH > _config.height ? 0 : int((y - _holder.y) / cellH) * _config.nCols;
 				
 				//update content, then update positions
 				updateItems(_dFrom, _dCount, false, _config.onContent);
 				updateItems(_dFrom, _dCount, true, _config.onPosition);
 				
 				if (_config.useAlphaClip) {
-					d1			= viewY - _holder.y;
+					d1			= y - _holder.y;
 					d2			= d1 + viewH - cellH;
 					
 					for (i = 0; i < _nItems; i++) {
@@ -337,7 +292,7 @@ package vn.ui {
 		}
 		
 		public function get position():Number {
-			return isNaN(_position) ? _config.isHorz ? (_config.viewW >= _config.width) ? 0 : ((_config.viewX + _config.maskMrg - _holder.x + _config.paddingStart) / (_config.width - _config.viewW)) : (_config.viewH >= _config.height) ? 0 : ((_config.viewY + _config.maskMrg - _holder.y + _config.paddingStart) / (_config.height - _config.viewH)) : _position;
+			return isNaN(_position) ? _config.isHorz ? (_config.viewW >= _config.width) ? 0 : ((_config.x + _config.maskMrg - _holder.x + _config.paddingStart) / (_config.width - _config.viewW)) : (_config.viewH >= _config.height) ? 0 : ((_config.y + _config.maskMrg - _holder.y + _config.paddingStart) / (_config.height - _config.viewH)) : _position;
 		}
 		
 	/****************
@@ -400,9 +355,44 @@ package vn.ui {
 			}
 		}
 		
-		public function get activeIdx():int {
-			return _activeIdx;
+	/***********************
+	 * 		CELL INFO
+	 **********************/
+		
+		public function getRow(idx : int) : int {
+			return _config.isHorz ? int(idx / _config.nRows) : (idx % _config.nCols);
 		}
+		
+		public function getCol(idx: int) : int {
+			return _config.isHorz ? (idx % _config.nRows) : int(idx / _config.nCols);
+		}
+		
+		public function getViewPercent(idx: int): Number {
+			return 
+		}
+		
+		
+		
+		
+		
+		
+		public function getCellInfo(idx: int): Object {
+			var row : int = _config.isHorz ? int(i / _config.nRows) : (i % _config.nCols);
+			var col : int = _config.isHorz ? (i % _config.nRows) : int(i / _config.nCols);
+			
+			var d1	: int = isHorz ? x - _holder.x :  y - _holder.y;
+			var d2	: int = isHorz ? d1 + viewW - cellW	: d1 + viewH - cellH;
+			
+			return {
+				row 		: row,
+				col 		: col,
+				x 			: row * _config.cellW,
+				y 			: row * _config.cellH,
+				
+			}
+		}
+		
+		public function get activeIdx():int { return _activeIdx; }
 		
 		public function set activeIdx(value:int):void {
 			var oldIdx	: int		= _activeIdx;
@@ -477,8 +467,8 @@ import flash.utils.getQualifiedClassName;
    public var paddingStart	: int; //offset the _holder content
    public var paddingEnd	: int;
 
-   public var viewX	: int;
-   public var viewY	: int;
+   public var x	: int;
+   public var y	: int;
    public var viewW	: int;
    public var viewH	: int;
    public var maskMrg	: int; //margin for better content read
@@ -512,13 +502,15 @@ import flash.utils.getQualifiedClassName;
 
  
  class gConfig {
-	// content information
+	// content (equivalent DisplayObject) information
+	public var x		: int;
+	public var y		: int;
 	public var width	: int;
 	public var height	: int;
 	
-	//view info
-	public var viewX	: int;
-	public var viewY	: int;
+	//clipping rect
+	public var viewX	: int; // = -holder.x
+	public var viewY	: int; // = -holder.y
 	public var viewW	: int;
 	public var viewH	: int;
 	
@@ -541,7 +533,8 @@ import flash.utils.getQualifiedClassName;
 	public var mskB	: int;
 	
 	//public var cacheAsBitmap	: Boolean;//swap items with bitmap when mouse is out of cell view//should cacheAsBitmap run one by one for each frame ?
-	public var autoPosition		: Boolean;//automatically set items' positions
+	public var autoPosition			: Boolean;//automatically set items' positions
+	public var centerShortContent	: Boolean;
 	
 	//clipping mode
 	public var useBlendClip		: Boolean;//edge items will be cached as Bitmap & won't interactable
@@ -559,11 +552,10 @@ import flash.utils.getQualifiedClassName;
 	public var onPosition	: Function;
 	public var onContent	: Function; //should we use dynamic content creation (empty sprites to be holders ?)
 	public var onUpdate		: Function;
-	public var centerShortContent	: Boolean;
 	
 	public function gConfig() {
-		viewX = 0;
-		viewY = 0;
+		x = 0;
+		y = 0;
 		viewW = 200;
 		viewH = 200;
 		
@@ -587,6 +579,8 @@ import flash.utils.getQualifiedClassName;
 	//cell information
 	public var x		: int;
 	public var y		: int;
+	//public var w		: int;
+	//public var h		: int;
 	public var pctView	: Number; //percentage in view
 	
 	//public var lastUpdateTime	: int; //update time stamp
@@ -596,7 +590,51 @@ import flash.utils.getQualifiedClassName;
 }
 
 class gSample {//create samples
+	public var _sample		: DisplayObject;
+	public var _sampleClass	: Class;
 	
+	public function setSample(pdo: Object): void {
+		if (!_sampleClass || !(pdo is _sampleClass)) {
+			try {
+				_sampleClass	= getDefinitionByName(getQualifiedClassName(pdo)) as Class;
+			} catch (e: Error) { log('setSample', 'Can not find definition <' + getQualifiedClassName(pdo) + '>') }
+		}
+		
+		_sample			= pdo as DisplayObject;
+		_config.x		= _sample.x;
+		_config.y		= _sample.y;
+		_config.cellW	= _sample.width;
+		_config.cellH	= _sample.height;
+		
+		if (_sample.parent) _sample.parent.removeChild(_sample);
+		checkMaskSize();
+		
+		_items = [pdo];
+		_nItems = 1;
+		//Utils.resizeArray(_items, _sampleClass, _nItems);
+		return this;
+	}
+	
+	public function setSampleClass(cls : Class): void {
+		if (!cls) {
+			log('setSampleClass', 'The sample class can not be null');
+			return this;
+		}
+		
+		var sample : DisplayObject;
+		try {
+			sample = new cls() as DisplayObject;
+		} catch (e: Error) {}
+		
+		if (sample) {
+			_sampleClass = cls;
+			setSample(sample);
+		} else {
+			log('setSampleClass', 'The sample class' + cls + ' must be intantiable & it instance should be a DisplayObject');
+		}
+		
+		return this;
+	}
 }
 
 
