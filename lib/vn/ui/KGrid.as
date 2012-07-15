@@ -1,86 +1,246 @@
 package vn.ui {
 	import flash.display.DisplayObject;
-	
+	import flash.display.Graphics;
+	import flash.display.InteractiveObject;
+	import flash.display.Sprite;
 	
 	/**
 	 * ...
 	 * @author
 	 */
 	public class KGrid {
-		private var _core		: gCore;
-		private var _config 	: gConfig;
-		private var _cache		: gCache;
+		private var _core			: gCore;
+		private var _config 		: gConfig;
+		private var _cache			: gCache;
 		
-		private var _containers	: Array/*gContainer*/;
 		
-		public function KGrid(parentOrViewProps: Object, cacheSize: int) {
-			_core = new gCore();
+		
+		//private var _selectedId		: int; //if there are only 1 item can be selected at a time
+		//private var _arrSelected	: Array; //list of selected id
+		//
+		//private var _hasFilter		: Boolean;
+		//private var _arrFiltered	: Array;//list of filtered id
+		
+		public function KGrid(parentOrViewProps: Object, cacheSize: int = 100) {
+			_core		= new gCore();
+			_config		= new gConfig();
+			_cache		= new gCache(cacheSize);
+			_holder		= new Sprite();
+			_items		= [];
 			
+			var sample : DisplayObject = Utils.setView(parentOrViewProps, _holder);
+			if (sample) {
+				delete sample.parent['sample'];
+			}
 		}
 		
-		public function setSample(): KGrid {
-			
-			return this;
+		
+		private var _position	: Number;
+		public function get position():Number { return _position; }
+		public function set position(value:Number):void {
+			_position = value < 0 ? 0 : value>1 ? 1 : value;
+			refresh();
 		}
 		
-		public function setViewSize(w: int, h: int): KGrid {
-			
-			return this;
-		}
-		
-		private var _firstPack	: int; //first pack being shown
-		private var _stamp		: int; //reset time stamp : force update content if an item's time stamp < _stamp
 		
 		public function reset(dataLength: int): KGrid {
-			_core._nLength = dataLength;
+			_nItems = Math.min(dataLength, _core.nCells);
+			Utils.resizeArray(_items, gContainer, _nItems);
+			Utils.removeChildren(_holder);
+			
+			_position		= 0;
+			_core.nLength	= dataLength;
+			refresh();
 			
 			
+			var sprt : Sprite = new Sprite();
+			_holder.parent.addChild(sprt);
+			sprt.x = _holder.x;
 			
+			if (_config.drawDebug) {
+				var g : Graphics = sprt.graphics;
+				g.clear();
+				g.beginFill(0x00ff00, 0.2);
+				g.drawRect(0, 0, _core.viewW, _core.viewH);
+				g.endFill();
+			}
+			
+			return this;
+		}
+		
+		private var _holder	: Sprite; //TODO : convert to a special sprite where we can override width / height
+		private var _nItems : int;
+		private var _items	: Array/*gContainer*/;
+		
+		public function refresh(): void {
+			var mc		: gContainer;
+			
+			var first	: int = _core.position2Cell(_position);
+			var info	: gInfo;
+			
+			var clip1	: Number = _core.getFirstClipPercent(_position);
+			var clip2	: Number = _core.getLastClipPercent(_position);
+			//trace(this, _position, first, clip1, clip2);
+			
+			var pos		: int 	= _core.position2Pixel(_position);
+			var off		: int	= 0;// int(pos / 1000) * 1000;
+			
+			_holder.y = -pos + off;
+			
+			var min : int = Math.min(first + _nItems, _core.nLength);
+			min -= first;
+			
+			for (var i: int = 0; i < min; i++ ) {
+				mc = _items[(first + i) % _nItems];
+				
+				//trace(i, mc, (first + i) % _nItems)
+				
+				//swap info
+				info		= mc.lastInfo;
+				mc.lastInfo = mc.info;
+				mc.info		= info;
+				
+				_holder.addChild(mc); //TODO : SET CHILD INDEX ?
+				
+				//update info : OPTIMIZE LATER by reducing function calls
+				
+				//info.cellId		= first + i;
+				info.id			= first + i;
+				info.x			= _core.getCellX(info.id);
+				info.y			= _core.getCellY(info.id) - off;
+				info.row		= _core.getCellRow(info.id);
+				info.col		= _core.getCellCol(info.id);
+				
+				//trace(info.id, info.x, info.y, info.row, info.col);
+				
+				if (_config.useBlendClip || _config.autoAlpha) {
+					if (_nItems > _core.nRows * _core.nCols) {
+						if (i < _core.cellsPerPack) {
+							info.pct = clip1;
+						} else if (i > _nItems - _core.cellsPerPack) {
+							info.pct = clip2;
+						} else {
+							info.pct = 0;
+						}
+					} else {
+						info.pct = 0;
+					}
+				}
+				
+				if (_config.autoPosition) {
+					mc.x = info.x;
+					mc.y = info.y;
+				}
+				
+				if (_config.autoAlpha) {
+					mc.alpha = 1-info.pct;
+				}
+				
+				if (_config.drawDebug) {
+					mc.drawDebug();
+				}
+			}
 		}
 		
 		
+	/****************
+	 * 	INTERNAL
+	 ***************/
 		
+		public function get cache():gCache { return _cache; } //for global catching
 		
 	}
 }
 
-import flash.display.Bitmap;
-import flash.display.Sprite;
 
-class gContainer extends Sprite {//contains transient data
-	public var index		: int;
-	public var isActive		: Boolean;
+import flash.display.Bitmap;
+import flash.display.DisplayObject;
+import flash.display.DisplayObjectContainer;
+import flash.display.Graphics;
+import flash.display.MovieClip;
+import flash.display.Shape;
+import flash.display.Sprite;
+import flash.events.MouseEvent;
+import flash.text.TextField;
+import flash.text.TextFieldAutoSize;
+import flash.text.TextFormat;
+import flash.utils.Dictionary;
+import flash.utils.getTimer;
+
+class gInfo {
+	public var id			: int; //content id
+	public var cellId		: int; //position id
 	public var isSelected	: Boolean;
 	
-	public var stamp		: int; //time stamp for last content update
+	//pre calculated data
+	public var x 	: int;
+	public var y	: int;
+	public var row	: int;
+	public var col	: int;
+	public var pct	: Number; // -1 .. 1
+}
+
+class gContainer extends Sprite {//contains transient data
+	private var tf		:TextField;
 	
-	public var lastArea		: int; //use to detect area changes and update alpha / clipping ...
-	public var area			: int; //might be IN_VIEW > PARTLY_IN_VIEW > BUFFER > PARTLY_BUFFER > HIDDEN
+	public var info		: gInfo;
+	public var lastInfo	: gInfo;
 	
-	public var guIndex		: int; //the order in this Update call - different for each item (0 .. guTotal-1)
-	public var guTotal		: int; //total items that need to be update in this call
+	public var cache	: Object; //cache always get update to the current id
+	public var tween	: Boolean; //only true if grid is being ADD or FILTER IN / OUT
 	
-	public var cache		: Object; //normally contains a snapshot of this
-	public var snapshot		: Bitmap;
-	
-	public function drawDebug() {//draw this item's boundary
+	public function gContainer() {
+		info		= new gInfo();
+		lastInfo 	= new gInfo();
 		
+		tf = new TextField();
+		addChild(tf);
 	}
 	
+	
+	public function get isContentChanged(): Boolean {
+		return info.id != lastInfo.id;
+	}
+	
+	public function get isPositionChanged(): Boolean {
+		return info.cellId != lastInfo.cellId;
+	}
+	
+	public function get isAreaChanged(): Boolean {
+		return info.pct != lastInfo.pct;
+	}
+	
+	public function get isSelectionChanged(): Boolean {
+		return info.isSelected != lastInfo.isSelected;
+	}
+	
+	
+	public function drawDebug(): void {//draw this item's boundary
+		tf.text = "" + info.id;
+		
+		//TODO : add Debug Draw
+		var g : Graphics = graphics;
+		g.clear();
+		g.beginFill(info.id % 2==0 ? 0x8888ff : 0x5555ff);
+		g.drawRect(0, 0, 100, 30);
+		g.endFill();
+	}
+	
+	/*
 	public function takeSnapShot(): void {
-		
-	}
+		TODO : add snapshot support
+	}*/
 	
 	public function clear(): void {//remove all previous content
 		while (this.numChildren) this.removeChildAt(0);
 		
-		if (!snapshot) {
-			this.mouseChildren	= false;
-			this.mouseEnabled	= false;
+		//if (!snapshot) {
+			//this.mouseChildren	= false;
+			//this.mouseEnabled	= false;
 			//wait for all data loaded then call unlock
-		} else {
-			addChild(snapshot);
-		}
+		//} else {
+			//addChild(snapshot);
+		//}
 	}
 	
 	public function unlock(): void {
@@ -91,18 +251,6 @@ class gContainer extends Sprite {//contains transient data
 		this.mouseEnabled	= true;
 	}
 }
-
-import flash.display.DisplayObject;
-import flash.display.DisplayObjectContainer;
-import flash.display.Graphics;
-import flash.display.MovieClip;
-import flash.display.Shape;
-import flash.events.MouseEvent;
-import flash.text.TextField;
-import flash.text.TextFieldAutoSize;
-import flash.text.TextFormat;
-import flash.utils.Dictionary;
-import flash.utils.getTimer;
 
 class gCache {
 	protected var _cache	: Dictionary;
@@ -163,8 +311,6 @@ class gConfig {
 	public var width	: int;
 	public var height	: int;
 	
-	
-	
 	//mask margin
 	public var mskL	: int;
 	public var mskR	: int;
@@ -173,12 +319,14 @@ class gConfig {
 	
 	//public var cacheAsBitmap	: Boolean;//swap items with bitmap when mouse is out of cell view//should cacheAsBitmap run one by one for each frame ?
 	public var autoPosition			: Boolean;//automatically set items' positions
+	public var autoAlpha			: Boolean;
+	public var drawDebug			: Boolean;
 	public var centerShortContent	: Boolean;
 	
 	//clipping mode
 	public var useBlendClip		: Boolean;//edge items will be cached as Bitmap & won't interactable
 	public var useMaskClip		: Boolean;//hard clip
-	public var useAlphaClip		: Boolean;//alpha down edge : you won't be able to change item's alpha, change its children's alpha intead
+	//public var useAlphaClip		: Boolean;//alpha down edge : you won't be able to change item's alpha, change its children's alpha intead
 	
 	//item offset
 	//public var offsetX	: int;
@@ -192,17 +340,16 @@ class gConfig {
 	public var onContent	: Function; //should we use dynamic content creation (empty sprites to be holders ?)
 	public var onUpdate		: Function;
 	
+	public var gOnPosition	: Function;
+	public var gOnContent	: Function;
+	public var gOnUpdate	: Function;
+	
+	
+	
 	public function gConfig() {
-		x = 0;
-		y = 0;
-		viewW = 200;
-		viewH = 200;
-		
-		isHorz	= false;
-		cellW	= 100;
-		cellH	= 20;
-		nRows	= 10;
-		nCols	= 2;
+		autoAlpha		= true;
+		autoPosition	= true;
+		drawDebug		= true;
 		
 		//maskMrg : 1,
 		//paddingEnd : 1,
@@ -234,7 +381,36 @@ class gCore {//grid core
 	//padding
 	private var _padStart	: int;
 	private var _padEnd		: int;
-
+	
+	
+	public function gCore() {
+		_nRows	= 8;
+		_nCols	= 1;
+		_isHorz	= false;
+		_cellW	= 100;
+		_cellH 	= 30;
+		
+		_viewW	= 100;
+		_viewH	= 200;
+		
+		refreshContent();
+	}
+	
+	public function get nLength():int { return _nLength; }
+	
+	public function get nRows():int { return _nRows; }
+	public function get nCols():int { return _nCols; }
+	public function get isHorz():Boolean { return _isHorz; }
+	
+	public function get cellW():int { return _cellW; }
+	public function get cellH():int { return _cellH; }
+	
+	public function get viewW():int { return _viewW; }
+	public function get viewH():int { return _viewH; }
+	
+	public function get padStart():int { return _padStart; }
+	public function get padEnd():int { return _padEnd; }
+	
 	//******************************************************************************//
 	//									SETTERS										//
 	//******************************************************************************//
@@ -281,22 +457,26 @@ class gCore {//grid core
 	//									CELL										//
 	//******************************************************************************//
 	
-	private function getCellCol(idx : int) : int {
+	public function get nCells(): int {
+		return _nRows * _nCols;
+	}
+	
+	public function getCellCol(idx : int) : int {
 		return _isHorz ? int(idx / _nRows) : (idx % _nCols);
 	}
 	
-	private function getCellRow(idx: int) : int {
+	public function getCellRow(idx: int) : int {
 		return _isHorz ? (idx % _nRows) : int(idx / _nCols);
 	}
 	
-	private function getCellX(idx: int): int {
+	public function getCellX(idx: int): int {
 		var col : int = _isHorz ? int(idx / _nRows) : (idx % _nCols); //inline for better performance
 		var pad	: int = (_isHorz && (_nLength > _nRows * _nCols)) ? _padStart : 0; //padding only available if content is NOT short
 		
 		return col * _cellW + pad;
 	}
 	
-	private function getCellY(idx: int): int {
+	public function getCellY(idx: int): int {
 		var row : int = _isHorz ? (idx % _nRows) : int(idx / _nCols); //inline for better performance
 		var pad	: int = (!_isHorz && (_nLength > _nRows * _nCols)) ? _padStart : 0; //padding only available if content is NOT short
 		
@@ -328,7 +508,9 @@ class gCore {//grid core
 	private function get contentWidth(): int {//content Length by pixel
 		if (_contentWidth != -1) return _contentWidth;
 		
-		var col : int = (_nContentCol == -1) ? nContentCol : _nContentCol;
+		//trace("getContent Width :: ", _nContentCol, _nContentRow, _nLength)
+		
+		var col : int = _nContentCol == -1 ? nContentCol : _nContentCol;
 		var pad : int = (_isHorz && (_nLength > _nRows * _nCols)) ? _padStart + _padEnd : 0;
 		_contentWidth = col * _cellW + pad;
 		
@@ -342,15 +524,19 @@ class gCore {//grid core
 		var pad	: int = (!_isHorz && (_nLength > _nRows * _nCols)) ? _padStart + _padEnd : 0; //padding : only available if content is NOT short
 		_contentHeight = row * _cellH + pad;
 		
+		//trace(row, _cellH, _contentHeight)
+		
 		return _contentHeight;
 	}
 	
 	private function get scrollL(): int {//scrolling Length by pixel
 		if (_scrollL != -1) return _scrollL;
 		
+		//trace('get scrollL : ', _contentWidth, _contentHeight);
+		
 		_scrollL = Math.max(0, _isHorz //short content should not be scrollable
-			? ((_contentWidth == -1 ? _contentWidth : contentWidth) - _viewW)
-			: ((_contentHeight == -1 ? _contentHeight : contentHeight) - _viewH)
+			? ((_contentWidth == -1 ? contentWidth : _contentWidth) - _viewW)
+			: ((_contentHeight == -1 ? contentHeight : _contentHeight) - _viewH)
 		);
 		
 		return _scrollL;
@@ -360,7 +546,7 @@ class gCore {//grid core
 	//								POSITION / RELATION								//
 	//******************************************************************************//
 	
-	private function get relation(): Number {
+	public function get relation(): Number {
 		if (_contentWidth == 0 || _contentHeight == 0) return 0;
 		
 		return _isHorz
@@ -368,28 +554,30 @@ class gCore {//grid core
 			: _viewH / ( (_contentHeight != -1) ? _contentHeight : contentHeight);
 	}
 	
-	private function pixel2Position(pixel: int): Number {
+	public function pixel2Position(pixel: int): Number {
 		if (_scrollL == 0) return 0;
-		return pixel / (_scrollL == -1) ? scrollL : _scrollL;
+		return pixel / ((_scrollL == -1) ? scrollL : _scrollL);
 	}
 	
-	private function position2Pixel(position: Number): int {
+	public function position2Pixel(position: Number): int {
 		if (_scrollL == 0) return 0; //TODO : support short content
-		return position * (_scrollL == -1) ? scrollL : _scrollL;
+		return position * ((_scrollL == -1) ? scrollL : _scrollL);
 	}
 	
-	private function cell2Position(idx: int): Number {//return row / col position
+	public function cell2Position(idx: int): Number {//return row / col position
 		if (_scrollL == 0) return 0;
 		
 		var pixel : int = _isHorz ? int(idx / _nCols) * _cellW : int(idx / _nRows) * _cellH + _padStart;
-		return pixel / (_scrollL == -1) ? scrollL : _scrollL;
+		return pixel / ((_scrollL == -1) ? scrollL : _scrollL);
 	}
 	
-	private function position2Cell(position : Number): int {//return the first cell of the row / col
+	public function position2Cell(position : Number): int {//return the first cell of the row / col
 		if (_scrollL == 0) return 0;
-		
 		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart;
-		return _isHorz ? Math.round(pixel / _cellW) * _nRows : Math.round(pixel / _cellH) * _nCols;
+		
+		//trace(pixel, _scrollL, position, _cellW, _cellH, _nRows, _nCols, _contentWidth, _contentHeight);
+		
+		return _isHorz ? int(pixel / _cellW) * _nRows : int(pixel / _cellH) * _nCols;
 	}
 	
 	//******************************************************************************//
@@ -400,7 +588,7 @@ class gCore {//grid core
 		if (_scrollL == 0) return 0; //no clip
 		
 		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart;
-		var rounded : int = _isHorz ? int(pixel / _cellW) * _cellW : int(pixel / _cellH) * _cellH);
+		var rounded : int = _isHorz ? int(pixel / _cellW) * _cellW : int(pixel / _cellH) * _cellH;
 		return (pixel - rounded) / (_isHorz ? _cellW : _cellH);
 	}
 	
@@ -408,7 +596,7 @@ class gCore {//grid core
 		if (_scrollL == 0) return 0; //no clip
 		
 		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart + _viewH;
-		var rounded : int = _isHorz ? int(pixel / _cellW) * _cellW : int(pixel / _cellH) * _cellH);
+		var rounded : int = _isHorz ? int(pixel / _cellW) * _cellW : int(pixel / _cellH) * _cellH;
 		return 1 - (pixel - rounded) / (_isHorz ? _cellW : _cellH);
 	}
 	
@@ -416,7 +604,7 @@ class gCore {//grid core
 	//								PACKS (= ROW || COL)							//
 	//******************************************************************************//
 	
-	public function getNPack(): int {
+	public function get NPack(): int {
 		return Math.ceil(_nLength / (_isHorz ? _nRows : _nCols));
 	}
 	
@@ -436,10 +624,10 @@ class gCore {//grid core
 		return int(cell / (_isHorz ? _nRows : _nCols));
 	}
 	
-	public function get cellPerPack(): int {
+	public function get cellsPerPack(): int {
 		return _isHorz ? _nRows : _nCols;
 	}
-	
+		
 	public function getFirstClipPack(position: Number): int {
 		if (_scrollL == 0) return 0; //no clip
 		
@@ -454,7 +642,7 @@ class gCore {//grid core
 		return int(pixel / (_isHorz ? _cellW : _cellH));
 	}
 }
- 
+
 class Utils {
 	public static function newTextField(name: String, parent: DisplayObjectContainer): TextField {
 		var tf : TextField = new TextField();

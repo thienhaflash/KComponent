@@ -13,15 +13,13 @@ package
 		
 		public function KGridTest() {
 			_grid = new KGrid( { parent : this, x: 100, y: 100 } )
-							.setClipping(true, false)
-							.reset(1000);
-							
-			stage.addEventListener(MouseEvent.MOUSE_DOWN, _onMouseMove);
+							.reset(100000);
+			stage.addEventListener(MouseEvent.MOUSE_DOWN, _updatePosition);
+			//stage.addEventListener(Event.ENTER_FRAME, _updatePosition);
 		}
 		
-		private function _onMouseMove(e:Event):void {
-			_grid.position = stage.mouseY / stage.stageHeight;
+		private function _updatePosition(e:Event):void {
+			_grid.position = (stage.mouseY-5) / (stage.stageHeight-10);
 		}
 	}
-
 }
