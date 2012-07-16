@@ -3,6 +3,7 @@ package vn.ui {
 	import flash.display.Graphics;
 	import flash.display.InteractiveObject;
 	import flash.display.Sprite;
+	import flash.utils.getTimer;
 	
 	/**
 	 * ...
@@ -38,10 +39,18 @@ package vn.ui {
 		private var _position	: Number;
 		public function get position():Number { return _position; }
 		public function set position(value:Number):void {
-			_position = value < 0 ? 0 : value>1 ? 1 : value;
+			//_position = value < 0 ? 0 : value>1 ? 1 : value;
+			_position = value;
 			refresh();
 		}
 		
+		public function get roundedPosition(): Number {
+			return _core.cell2Position(_core.position2Cell(_position));
+		}
+		
+		public function getRoundedPosition(p: Number): Number {
+			return _core.cell2Position(_core.position2Cell(p));
+		}
 		
 		public function reset(dataLength: int): KGrid {
 			_nItems = Math.min(dataLength, _core.nCells);
@@ -52,18 +61,20 @@ package vn.ui {
 			_core.nLength	= dataLength;
 			refresh();
 			
+			//var sprt : Sprite = new Sprite();
+			//_holder.parent.addChild(sprt);
+			//sprt.x	= _holder.x;
+			//sprt.y	= _holder.y;
+			//
+			//_holder.mask = sprt;
 			
-			var sprt : Sprite = new Sprite();
-			_holder.parent.addChild(sprt);
-			sprt.x = _holder.x;
-			
-			if (_config.drawDebug) {
-				var g : Graphics = sprt.graphics;
-				g.clear();
-				g.beginFill(0x00ff00, 0.2);
-				g.drawRect(0, 0, _core.viewW, _core.viewH);
-				g.endFill();
-			}
+			//if (_config.drawDebug) {
+				//var g : Graphics = sprt.graphics;
+				//g.clear();
+				//g.beginFill(0x00ff00, 0.2);
+				//g.drawRect(0, 0, _core.viewW, _core.viewH);
+				//g.endFill();
+			//}
 			
 			return this;
 		}
@@ -73,24 +84,30 @@ package vn.ui {
 		private var _items	: Array/*gContainer*/;
 		
 		public function refresh(): void {
-			var mc		: gContainer;
 			
-			var first	: int = _core.position2Cell(_position);
+			var t		: int = getTimer();
+			var mc		: gContainer;
 			var info	: gInfo;
 			
-			var clip1	: Number = _core.getFirstClipPercent(_position);
-			var clip2	: Number = _core.getLastClipPercent(_position);
-			//trace(this, _position, first, clip1, clip2);
+			var first		: int		= _core.position2Cell(_position);
+			var clip1		: Number	= _core.getFirstClipPercent(_position);
+			var clip2		: Number	= _core.getLastClipPercent(_position);
+			var firstClip	: int		= _core.pack2Cell(_core.getFirstClipPack(_position));
+			var lastClip	: int		= _core.pack2Cell(_core.getLastClipPack(_position));
+			
+			//trace(this, _core.scrollL, _core.contentWidth, _core.contentHeight, _core.NPack, firstClip, lastClip);
 			
 			var pos		: int 	= _core.position2Pixel(_position);
-			var off		: int	= 0;// int(pos / 1000) * 1000;
+			var off		: int	= int(pos / 1000) * 1000;
 			
-			_holder.y = -pos + off;
+			_core.isHorz ? (_holder.x = -pos + off) : (_holder.y = -pos + off);
 			
 			var min : int = Math.min(first + _nItems, _core.nLength);
 			min -= first;
 			
 			for (var i: int = 0; i < min; i++ ) {
+				if (first + i < 0) continue; //skip spaces
+				
 				mc = _items[(first + i) % _nItems];
 				
 				//trace(i, mc, (first + i) % _nItems)
@@ -106,25 +123,34 @@ package vn.ui {
 				
 				//info.cellId		= first + i;
 				info.id			= first + i;
-				info.x			= _core.getCellX(info.id);
-				info.y			= _core.getCellY(info.id) - off;
+				info.x			= _core.getCellX(info.id) - (_core.isHorz ? off : 0);
+				info.y			= _core.getCellY(info.id) - (_core.isHorz ? 0 : off);
+				info.w			= _core.cellW;
+				info.h			= _core.cellH;
+				
 				info.row		= _core.getCellRow(info.id);
 				info.col		= _core.getCellCol(info.id);
 				
-				//trace(info.id, info.x, info.y, info.row, info.col);
+				
+				//trace(info.id, info.x, info.y, info.row, info.col, _core.cellsPerPack, clip1, clip2, firstClip, lastClip);
 				
 				if (_config.useBlendClip || _config.autoAlpha) {
-					if (_nItems > _core.nRows * _core.nCols) {
-						if (i < _core.cellsPerPack) {
+					if (_core.nLength > _core.nRows * _core.nCols) {
+						//trace('a', clip1, clip2);
+						if (info.id < firstClip + _core.cellsPerPack) {
 							info.pct = clip1;
-						} else if (i > _nItems - _core.cellsPerPack) {
+						} else if (info.id < lastClip) {
+							info.pct = 0;
+						} else if (info.id < lastClip + _core.cellsPerPack) {
 							info.pct = clip2;
 						} else {
-							info.pct = 0;
+							info.pct = 1;
 						}
 					} else {
 						info.pct = 0;
 					}
+					
+					//trace(info.id, info.pct)
 				}
 				
 				if (_config.autoPosition) {
@@ -175,9 +201,17 @@ class gInfo {
 	//pre calculated data
 	public var x 	: int;
 	public var y	: int;
+	public var w	: int;
+	public var h	: int;
+	
 	public var row	: int;
 	public var col	: int;
 	public var pct	: Number; // -1 .. 1
+	
+	public function gInfo() {
+		pct = 1;
+		id 	= -1;
+	}
 }
 
 class gContainer extends Sprite {//contains transient data
@@ -194,6 +228,8 @@ class gContainer extends Sprite {//contains transient data
 		lastInfo 	= new gInfo();
 		
 		tf = new TextField();
+		tf.mouseEnabled = false;
+		tf.mouseWheelEnabled = false;
 		addChild(tf);
 	}
 	
@@ -215,15 +251,27 @@ class gContainer extends Sprite {//contains transient data
 	}
 	
 	
+	private static var cnt : int;
+	
 	public function drawDebug(): void {//draw this item's boundary
-		tf.text = "" + info.id;
 		
-		//TODO : add Debug Draw
-		var g : Graphics = graphics;
-		g.clear();
-		g.beginFill(info.id % 2==0 ? 0x8888ff : 0x5555ff);
-		g.drawRect(0, 0, 100, 30);
-		g.endFill();
+		//if (info.pct == 1) {
+			//trace('completedly clipped - return ');
+			//return;
+		//}
+		
+		if ((info.id != lastInfo.id && info.pct != 1) || (lastInfo.pct == 1 && info.pct != 1)) {
+			tf.text = "" + info.id;
+			
+			//TODO : add Debug Draw
+			var g : Graphics = graphics;
+			g.clear();
+			g.beginFill(info.id % 2==0 ? 0x8888ff : 0x5555ff);
+			g.drawRect(0, 0, info.w, info.h);
+			g.endFill();
+			
+			//trace('draw ' + ++cnt);
+		}
 	}
 	
 	/*
@@ -384,14 +432,15 @@ class gCore {//grid core
 	
 	
 	public function gCore() {
-		_nRows	= 8;
-		_nCols	= 1;
 		_isHorz	= false;
-		_cellW	= 100;
-		_cellH 	= 30;
+		_cellW	= 40;
+		_cellH 	= 20;
 		
-		_viewW	= 100;
-		_viewH	= 200;
+		_viewW	= 400;
+		_viewH	= 300;
+		
+		_nRows	= int(_viewH/_cellH) + (_isHorz ? 1 : 0);
+		_nCols	= int(_viewW/_cellW) + (_isHorz ? 0 : 1);
 		
 		refreshContent();
 	}
@@ -493,19 +542,19 @@ class gCore {//grid core
 	private var _contentHeight	: int;
 	private var _scrollL		: int;
 	
-	private function get nContentCol(): int {//number of cols if there are no buffer (normal, non-buffer render)
+	public function get nContentCol(): int {//number of cols if there are no buffer (normal, non-buffer render)
 		return (_nContentCol == -1) //check if dirty to recalculate 
 					? _nContentCol = _isHorz ? Math.ceil(_nLength / _nRows) : Math.min(_nLength, _nCols)
 					: _nContentCol;
 	}
 	
-	private function get nContentRow(): int {//number of rows if there are no buffer (normal, non-buffer render)
+	public function get nContentRow(): int {//number of rows if there are no buffer (normal, non-buffer render)
 		return (_nContentRow == -1)
 					? _nContentRow = _isHorz ? Math.min(_nLength, _nRows) : Math.ceil(_nLength / _nCols)
 					: _nContentRow;
 	}
 	
-	private function get contentWidth(): int {//content Length by pixel
+	public function get contentWidth(): int {//content Length by pixel
 		if (_contentWidth != -1) return _contentWidth;
 		
 		//trace("getContent Width :: ", _nContentCol, _nContentRow, _nLength)
@@ -517,7 +566,7 @@ class gCore {//grid core
 		return _contentWidth;
 	}
 	
-	private function get contentHeight(): int {
+	public function get contentHeight(): int {
 		if (_contentHeight != -1) return _contentHeight;
 		
 		var row	: int = _nContentRow == -1 ? nContentRow : _nContentCol; //save one function call if cached
@@ -529,7 +578,7 @@ class gCore {//grid core
 		return _contentHeight;
 	}
 	
-	private function get scrollL(): int {//scrolling Length by pixel
+	public function get scrollL(): int {//scrolling Length by pixel
 		if (_scrollL != -1) return _scrollL;
 		
 		//trace('get scrollL : ', _contentWidth, _contentHeight);
@@ -567,16 +616,13 @@ class gCore {//grid core
 	public function cell2Position(idx: int): Number {//return row / col position
 		if (_scrollL == 0) return 0;
 		
-		var pixel : int = _isHorz ? int(idx / _nCols) * _cellW : int(idx / _nRows) * _cellH + _padStart;
+		var pixel : int = _isHorz ? int(idx / _nRows) * _cellW : int(idx / _nCols) * _cellH + _padStart;
 		return pixel / ((_scrollL == -1) ? scrollL : _scrollL);
 	}
 	
 	public function position2Cell(position : Number): int {//return the first cell of the row / col
 		if (_scrollL == 0) return 0;
 		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart;
-		
-		//trace(pixel, _scrollL, position, _cellW, _cellH, _nRows, _nCols, _contentWidth, _contentHeight);
-		
 		return _isHorz ? int(pixel / _cellW) * _nRows : int(pixel / _cellH) * _nCols;
 	}
 	
@@ -595,7 +641,8 @@ class gCore {//grid core
 	public function getLastClipPercent(position: Number): Number {
 		if (_scrollL == 0) return 0; //no clip
 		
-		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart + _viewH;
+		var viewPx	: int = _isHorz ? _viewW : _viewH;
+		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart + viewPx;
 		var rounded : int = _isHorz ? int(pixel / _cellW) * _cellW : int(pixel / _cellH) * _cellH;
 		return 1 - (pixel - rounded) / (_isHorz ? _cellW : _cellH);
 	}
@@ -638,7 +685,8 @@ class gCore {//grid core
 	public function getLastClipPack(position: Number): int {
 		if (_scrollL == 0) return 0; //no clip
 		
-		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart + _viewH;
+		var viewPx	: int = _isHorz ? _viewW : _viewH;
+		var pixel 	: int = position * ((_scrollL == -1) ? scrollL : _scrollL) - _padStart + viewPx;
 		return int(pixel / (_isHorz ? _cellW : _cellH));
 	}
 }
@@ -744,63 +792,5 @@ class Utils {
 			}
 			return parentOrViewProps.sample || p.getChildByName('sample');
 		}
-	}
-}
-
-class TextItem extends MovieClip {
-	public var tf	: TextField;
-	public var over : Shape;
-	public var bg	: Shape;
-	
-	private var id		: int;
-	private var grid	: Object;
-	
-	public function TextItem() {
-		bg		= Utils.newRect(0xEEEEEE, 'mcBg', this);
-		over	= Utils.newRect(0x8888ff, 'mcOver', this);
-		tf		= Utils.newTextField('txtLabel', this);
-		
-		over.height = 20;
-		bg.height = 20;
-		
-		over.visible = false;
-		mouseChildren = false;
-		
-		buttonMode = true;
-		addEventListener(MouseEvent.MOUSE_OVER, _showOver);
-		addEventListener(MouseEvent.MOUSE_OUT, _hideOver);
-		addEventListener(MouseEvent.CLICK, _onClickItem);
-	}
-	
-	private function _onClickItem(e:MouseEvent):void {
-		grid.activeIdx = id;
-	}
-	
-	private function _hideOver(e:MouseEvent):void {
-		if (grid.activeIdx != id) over.visible = false;
-	}
-	
-	private function _showOver(e:MouseEvent):void {
-		if (grid.activeIdx != id) over.visible = true;
-	}
-	
-	override public function get width():Number { return bg.width; }
-	override public function get height():Number { return bg.height; }
-	
-	public function onContent(grid: Object, id: int, data : * ): void {
-		//trace('onContent ::', id);
-		tf.text		= id + "|"+getTimer();
-		bg.alpha	= ((id % 4) == 0 || (id % 4) == 3) ? 1 : 0.5;
-		
-		setActive(grid.activeIdx == id);
-		
-		this.id		= id;
-		this.grid	= grid;
-	}
-	
-	public function setActive(isActive: Boolean): void {
-		over.visible	= isActive; //always show if active !
-		over.alpha 		= isActive ? 1 : 0.5;
-		buttonMode		= !isActive;
 	}
 }
